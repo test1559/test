@@ -1,0 +1,45 @@
+import truststore
+import requests
+import pytest
+from jsonpath import jsonpath
+import pandas as pd
+from string import Template
+from tenacity import retry, wait_fixed,stop_after_attempt
+import json
+
+truststore.inject_into_ssl()
+
+def excel_to_dict_list(file_path,sheet_name="Sheet1"):
+    """
+    读取Excel文件，第一行作为key，转换为字典列表
+    :param file_path: Excel文件路径（支持.xlsx/.xls）
+    :return: 字典列表，每个字典对应一行数据
+    """
+    # 读取Excel文件，header=0 表示第一行作为列名（即字典的key）
+    df = pd.read_excel(file_path, header=0, sheet_name=sheet_name)
+    # 将所有NaN替换为空字符串（更友好，避免后续处理报错）
+    df = df.fillna("")
+    # 将DataFrame转换为字典列表,并输出，orient='records' 表示每行对应一个字典
+    return df.to_dict(orient='records')
+
+cases = excel_to_dict_list("/Users/Zhuanz/Desktop/test/testS1.xlsx")
+# 全局变量，用于跨用例传输
+global_vars={}
+
+@pytest.mark.parametrize("case",cases)
+@retry(
+    wait=wait_fixed(1),          # 每次重试间隔 1 秒
+    stop=stop_after_attempt(3)   # 最多重试 3 次
+)
+def test_exec(case):
+    print(case)
+    response =requests.request(
+        method=case.get("method"),
+        url=case.get("URL"),
+        params=eval(case.get("params")),
+        data=eval(case.get("data")),
+        json=eval(case.get("json")),
+        timeout=3
+    )
+
+# 提取参数和参数传递没有做
